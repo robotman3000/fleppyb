@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Fleppyb by robotman3000</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Fleppyb</h1>
+      <h2 class="project-tagline">Flexible PowerDNS Python Backend</h2>
+      <a href="https://github.com/robotman3000/fleppyb" class="btn">View on GitHub</a>
+      <a href="https://github.com/robotman3000/fleppyb/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/robotman3000/fleppyb/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="fleppyb-flexible-powerdns-python-backend" class="anchor" href="#fleppyb-flexible-powerdns-python-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>Fleppyb (Flexible PowerDNS Python Backend)</h1>
+
+<p>Fleppyb is a <a href="http://doc.powerdns.com/backends-detail.html#pipebackend">PowerDNS pipe backend</a>. In brief Fleppyb process DNS query from the PowerDNS master process and according with matching rules can resolve the query.
+Parameters checked during the matching rule process are these provided by the <strong>PipeBackend v.2</strong> protocol:</p>
+
+<p><strong>Query Name:</strong> the name whereby the query asks, for example the query performed by</p>
+
+<pre><code>dig @192.168.2.20 www.google.it
+</code></pre>
+
+<p>the Query Name will be <a href="http://www.google.it">www.google.it</a></p>
+
+<p><strong>Query Type:</strong> the record type requested by the query, for example:</p>
+
+<pre><code>dig @192.168.2.20 -t MX google.it
+</code></pre>
+
+<p>the Query Type will be <strong>MX</strong></p>
+
+<p><strong>Remote IP:</strong> the IP address that performed the query:</p>
+
+<pre><code>dig -b 192.168.3.11 @192.168.2.20 -t MX google.it
+</code></pre>
+
+<p>the Remote IP will be <strong>192.168.3.11</strong></p>
+
+<p><strong>Local IP:</strong> the local IP address that received the query:</p>
+
+<pre><code>dig @192.168.2.20 www.google.it
+</code></pre>
+
+<p>the Local IP will be <strong>192.168.2.20</strong></p>
+
+<p>With this Fleppyb you can implement a <em>split brain</em> configuration or some other match against the query parameters.</p>
+
+<h1>
+<a id="features" class="anchor" href="#features" aria-hidden="true"><span class="octicon octicon-link"></span></a>Features</h1>
+
+<p>At the moment of writing Fleppyb implements 2 backend:</p>
+
+<ul>
+<li>
+<strong>static</strong>: a static backend that allows you to configure your dns answer in a config file, you can also add a dealy in some answers.</li>
+<li>
+<strong>ldap</strong>: an ldap backend that allow you to be totally independent from your ldap schema, you can use more than one ldap server and configure differents LDAP query for different DNS requests</li>
+</ul>
+
+<h1>
+<a id="configuration" class="anchor" href="#configuration" aria-hidden="true"><span class="octicon octicon-link"></span></a>Configuration</h1>
+
+<p>There is 3 steps:</p>
+
+<ol>
+<li>Configuring Fleppyb parameters</li>
+<li>Configuring Flappyb matching rules</li>
+<li>Configuring PowerDNS in order to use Fleppyb as a backend</li>
+</ol>
+
+<h2>
+<a id="configuring-fleppyb-parameters" class="anchor" href="#configuring-fleppyb-parameters" aria-hidden="true"><span class="octicon octicon-link"></span></a>Configuring Fleppyb parameters</h2>
+
+<p>You must edit the main file fleppyb.py configuring these variables: </p>
+
+<ul>
+<li>
+<strong>DEBUG:</strong> enable/disable debugging messages, valid values: <strong>True</strong> or <strong>False</strong>
+</li>
+<li>
+<strong>CONFIG_FILE:</strong> path of config file, the config file contains matching rules. Eg. <strong>/etc/powerdns/fleppyb/fleppyb.conf</strong>
+</li>
+<li>
+<strong>PARSE_CONFIG_ONCE:</strong> parse the config file once (at startup) or at every query. This parameter can slow down performance in query resolutions. Using <em>True</em> you need to restart PowerDNS ad every Fleppyb config file changes. Valid values: <strong>True</strong> or <strong>False</strong>
+</li>
+<li>
+<strong>LOGFILE:</strong> where Fleppyb must write logging messages. You can use a file system path or a void value (""). With a void value logging messages will be printed on stdout (useful for testing or debugging). <strong>NB: This file path must exists and must be writable by PowerDNS user</strong>.</li>
+</ul>
+
+<h2>
+<a id="configuring-query-matching" class="anchor" href="#configuring-query-matching" aria-hidden="true"><span class="octicon octicon-link"></span></a>Configuring query matching</h2>
+
+<p>The matching rules file (defined bu variable <code>CONFIG_FILE</code>) uses <a href="http://docs.python.org/2/library/configparser.html">file ini syntax</a>: you must define sections and section variables.</p>
+
+<p>You can define a section with name <strong>DEFAULT</strong>: In this section you can define variables that will be inherited by others sections.
+Variable defined in <strong>DEFAULT</strong> section can be overwritten in non-default section.</p>
+
+<p>The name used in sections define the query matching criteria.
+Section name must respect this syntax:</p>
+
+<p><strong>[PREC;QUERY_NAME_REGEX:QUERY_TYPE:REMOTE_IP:LOCAL_IP]</strong></p>
+
+<p>Where:</p>
+
+<ul>
+<li>
+<strong>PREC:</strong> is the rule precedence: matching rules is an ordered list, first rule that match with query parameters will be used for the query resolution.</li>
+<li>
+<strong>QUERY_NAME_REGEX:</strong> it's a regular expression that will be evalued against the <em>Query Name</em>. Here you can use the <a href="http://docs.python.org/2/library/re.html">Python regular expression syntax</a>.</li>
+<li>
+<strong>QUERY_TYPE:</strong> this value will be matched against the <em>Query Type</em>, (A, TXT, MX, etc..). You can use the special char * in order to match every query type. </li>
+<li>
+<strong>REMOTE_IP:</strong> this value will be evaluated against the client IP address requesting the query, can be an IP address or a subnet in CIDR format (Eg.: 192.168.2.0/24)</li>
+<li>
+<strong>LOCAL_IP:</strong> this value will be evaluated against the destination IP address. Alsto this one can be an IP address or a subnet.</li>
+</ul>
+
+<h2>
+<a id="examples" class="anchor" href="#examples" aria-hidden="true"><span class="octicon octicon-link"></span></a>Examples</h2>
+
+<p><strong>[1:.<em>.in-addr.arpa$:</em>:0.0.0.0/0:0.0.0.0/0]</strong> With this section name you define:</p>
+
+<ul>
+<li>  <strong>Precedence:</strong> <em>1</em>
+</li>
+<li>  <strong>Query name regex:</strong> *.*.in-addr.arpa$ (every name that ends with <em>in-addr.arpa</em>)</li>
+<li>  <strong>Query Type:</strong> * (every query type)</li>
+<li>  <strong>Remote IP:</strong> 0.0.0.0/0 (every client IP address)</li>
+<li>  <strong>Local IP:</strong> 0.0.0.0/0 (every server IP address)</li>
+</ul>
+
+<p>This section will be evalued as a first rule and will match against every reverse query (every names anding with in-addr.arpa) Ex.:</p>
+
+<pre><code>dig @192.168.2.20 -x 192.168.3.10
+
+;; QUESTION SECTION:
+;20.2.168.192.in-addr.arpa. IN  PTR
+
+;; ANSWER SECTION:
+20.2.168.192.in-addr.arpa. 2400 IN  PTR host.example.com.
+</code></pre>
+
+<h1>
+<a id="query-resolution" class="anchor" href="#query-resolution" aria-hidden="true"><span class="octicon octicon-link"></span></a>Query resolution</h1>
+
+<p><strong>Query resolution:</strong></p> 
+
+<p>Inside sections you can define your resolution rules, you can define differents parameters depending on backend used.
+In every sections you must define a <strong>backend</strong> paramether that define the backend. Unltil now only <strong>ldap</strong> and <strong>static</strong> backend are implemented</p>
+
+<h1>
+<a id="static-backend" class="anchor" href="#static-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>Static Backend</h1>
+
+<p>Using the <strong>static</strong> backend you can statically configure answers for query matching the section. You can define 2 variables:</p>
+
+<ul>
+<li>
+<strong>answer</strong>: this is a three fields value separed by a semicolon (:), these fields must be: TYPE:TTL:VALUE, eg. A:300:192.168.10.100. you can define multiple response separing ansewrs with a comma (,). Eg.: </li>
+</ul>
+
+<p>This section define a rule matching every query for the name <strong>host.example.com</strong> with 2 A records with dittents TTL:</p>
+
+<pre><code>[10:host\.example\.com:*:0.0.0.0/0:0.0.0.0/0]
+backend=static
+answer=A:300:192.168.10.20,A:900:192.168.10.22
+</code></pre>
+
+<p>Qwering the server:</p>
+
+<pre><code>dig @172.16.18.5 host.example.com
+
+;; QUESTION SECTION:
+;host.example.com.      IN  A
+
+;; ANSWER SECTION:
+host.example.com.   900 IN  A   192.168.10.22
+host.example.com.   300 IN  A   192.168.10.20
+</code></pre>
+
+<ul>
+<li>
+<strong>delay</strong>: A delay in query response. This is a value in seconds, you can express also decimal values. You can use also random values using rand:MIN:MAX (eg. rand:3:10 will add arandom delay between 3 and 10 sec.)
+Eg.:</li>
+</ul>
+
+<p>Adding a 5 seconds delay for every query to host.example.com</p>
+
+<pre><code>[10:host\.example\.com:*:0.0.0.0/0:0.0.0.0/0]
+delay=5
+backend=static
+answer=A:300:192.168.10.20,A:900:192.168.10.2
+</code></pre>
+
+<h1>
+<a id="ldap-backend" class="anchor" href="#ldap-backend" aria-hidden="true"><span class="octicon octicon-link"></span></a>LDAP Backend</h1>
+
+<p>With this backend you can implement your DNS server using your own LDAP schema.
+With LDAP Backend you can define for every query matching rule the ldap server, base, credentials, attributes and query filters using these parameters: </p>
+
+<p><strong>ldap_uri:</strong> LDAP server URI Eg.: <strong>ldap://localhost</strong></p>
+
+<p><strong>base:</strong> LDAP base used in query Eg.: <strong>dc=example,dc=com</strong><br>
+<strong>bind_dn:</strong> LDAP bind DN used during the query (if needed). Eg.: <strong>cn=admin.example.com</strong>
+<strong>bind_password:</strong> LDAP bind password (if needed)<br>
+<strong>XXX_attribute:</strong> Attribute mapping rule, Eg.: <strong>A_attribute=aRecord</strong> define a mapping between the <em>A</em> attribute and the ldap attribute <strong>aRecord</strong> thanks to this field you can use every LDAP schema for your DNS server.</p>
+
+<p><strong>Examples:</strong>
+    MX_attribute = MxRecord<br>
+    NS_attribute = nSRecord<br>
+    TTL_attribute = dNSTTL<br>
+    SOA_attribute = sOARecord<br>
+    CNAME_attribute = cNAMERecord<br>
+    TXT_attribute = tXTRecord  </p>
+
+<p><strong>TTL_default:</strong> default TTL (if <strong>TTL_attribute</strong> isn't defined) 
+<strong>query</strong>: LDAP query filter. Here you can use some variable extracted from the query (see <em>Query filter formatting</em> ) Ex: <strong>(&amp;(objectClass=extensibleObject)(associatedDomain=%(qname)s))</strong><br>
+<strong>bind:</strong> if False the ldap bind will be not executed. Valid values: <strong>True</strong> or <strong>False</strong>   </p>
+
+<p><strong>Query filter formatting:</strong></p>
+
+<p>the <strong>query</strong> parameter can contains some formatters that permit to dinamically compose the ldap query:</p>
+
+<p><strong>%(qname)s</strong> : expanded with <strong>Query Name</strong><br>
+<strong>%(qtype)s</strong> : expandend with <strong>Query Type</strong> 
+<strong>%(remote_ip)s</strong> : expanded with <strong>Remote IP</strong><br>
+<strong>%(local_ip)s</strong> : expanded with <strong>Local IP</strong>
+<strong>%(rqname)s</strong> : expanded with the IP address representing the <em>Query Name</em> if we are resolving a reverse query.</p>
+
+<p><strong>Configuring PowerDNS</strong></p>
+
+<p>You neet to add to PowerDNS configuration file (<strong>/etc/powerdns/pdns.conf</strong>) these paramethers:</p>
+
+<p>launch=pipe
+   pipe-command=/etc/powerdns/fleppyb/fleppyb.py
+   pipebackend-abi-version=2</p>
+
+<ul>
+<li>
+<strong>launch=pipe</strong> definisce di utilizzare un pipe backend<br>
+</li>
+<li>
+<strong>pipe-command</strong> definisce il path di fleppyb.py<br>
+</li>
+<li>
+<strong>pipebackend-abi-version=2</strong> definisce la versione del protocollo pipebackend da utilizzare </li>
+</ul>
+
+<h1>
+<a id="examples-1" class="anchor" href="#examples-1" aria-hidden="true"><span class="octicon octicon-link"></span></a>Examples</h1>
+
+<h2>
+<a id="view-split-brain-implementation" class="anchor" href="#view-split-brain-implementation" aria-hidden="true"><span class="octicon octicon-link"></span></a>View (split brain) implementation</h2>
+
+<p>Query coming from the subnet 192.168.2.0/24 will be used the LDAP tree <strong>dc=internal,dc=example,dc=com</strong>.
+All athers queries will be resolved searching in <strong>dc=external,dc=example,dc=com</strong> ldap tree.</p>
+
+<p>Very important is the right use of rule precendence!!.</p>
+
+<p><strong>fleppyb.ini</strong></p>
+
+<pre><code>[DEFAULT]
+ldap_uri=ldap://localhost
+A_attribute=aRecord
+MX_attribute = MxRecord
+NS_attribute = nSRecord
+TTL_attribute = dNSTTL
+TTL_default = 2400
+SOA_attribute = sOARecord
+CNAME_attribute = cNAMERecord
+base = dc=example,dc=com
+query = (&amp;(objectClass=domainRelatedObject)(associatedDomain=%(qname)s))
+
+[2:.*:*:0.0.0.0/0:0.0.0.0/0]
+TTL_attribute = drink
+base = dc=external,dc=example,dc=com
+query = (dc=%(qname)s)
+backend=ldap
+bind=False
+
+[1:.*:*:192.168.2.50:0.0.0.0/0]
+TTL_attribute = drink
+base = dc=internal,dc=example,dc=com
+query = (dc=%(qname)s)
+backend=ldap
+bind=False
+</code></pre>
+
+<p><strong>Database ldap (tree dc=external,dc=example,dc=com):</strong></p>
+
+<pre><code>dn: dc=external,dc=example,dc=com
+dc: external
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: 2v
+
+dn: dc=example.com,dc=external,dc=example,dc=com
+sOARecord: ns1.example.com. dns-admin.example.com. 1446303 7200 1800 1209600 300
+dc: example.com
+objectClass: dNSDomain
+objectClass: domain
+objectClass: top
+nSRecord: ns1.example.com.
+nSRecord: ns2.example.com.
+
+dn: dc=ns1.example.com,dc=external,dc=example,dc=com
+dc: ns1.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 83.102.11.30
+
+dn: dc=ns2.example.com,dc=external,dc=example,dc=com
+dc: ns2.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 83.102.11.31
+
+dn: dc=www.example.com,dc=external,dc=example,dc=com
+dc: www.example.com
+cNAMERecord: fast.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+
+dn: dc=fast.example.com,dc=external,dc=example,dc=com
+dc: fast.example.com
+drink: 60
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 83.102.11.32
+</code></pre>
+
+<p><strong>Dadabase ldap (tree dc=internal,dc=example,dc=com)</strong></p>
+
+<pre><code>dn: dc=internal,dc=example,dc=com
+dc: internal
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: 2v
+
+dn: dc=example.com,dc=internal,dc=example,dc=com
+sOARecord: ns1.example.com. dns-admin.example.com. 1446303 7200 1800 1209600 300
+dc: example.com
+objectClass: dNSDomain
+objectClass: domain
+objectClass: top
+nSRecord: ns1.example.com.
+nSRecord: ns2.example.com.
+
+dn: dc=ns1.example.com,dc=internal,dc=example,dc=com
+dc: ns1.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 192.168.101.2
+
+dn: dc=ns2.example.com,dc=internal,dc=example,dc=com
+dc: ns2.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 192.168.101.1
+
+dn: dc=www.example.com,dc=internal,dc=example,dc=com
+dc: www.example.com
+cNAMERecord: fast.example.com
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+
+dn: dc=fast.example.com,dc=internal,dc=example,dc=com
+dc: fast.example.com
+drink: 60
+objectClass: dcObject
+objectClass: top
+objectClass: organization
+objectClass: extensibleObject
+o: example.com
+aRecord: 192.168.101.3
+</code></pre>
+
+<p><strong>Query coming from an IP not in 192.168.2.0/24 subnet</strong></p>
+
+<pre><code>dig @192.168.2.20 -b 192.168.3.20 www.example.com
+
+;; QUESTION SECTION:
+;www.example.com.               IN      A
+
+;; ANSWER SECTION:
+www.example.com.        2400    IN      CNAME   fast.example.com.
+fast.example.com.       60      IN      A       83.102.11.32
+</code></pre>
+
+<p><strong>Query coming from the interna subnet (192.168.2.0/24)</strong></p>
+
+<pre><code>dig @192.168.2.20 -b 192.168.2.50 www.example.com
+
+;; QUESTION SECTION:
+;www.example.com.               IN      A
+</code></pre>
+
+<p>;; ANSWER SECTION:
+    <a href="http://www.example.com">www.example.com</a>.        2400    IN      CNAME   fast.example.com.
+    fast.example.com.       60      IN      A       192.168.101.3</p>
+
+<h2>
+<a id="reverse-zone" class="anchor" href="#reverse-zone" aria-hidden="true"><span class="octicon octicon-link"></span></a>Reverse zone</h2>
+
+<p>If a query with type <strong>ANY</strong> or <strong>PTR</strong> asks for a name that ends with in-addr.arpa the formatter <strong>%(rqname)</strong> will be resolved with the IP address.</p>
+
+<p>Ex:</p>
+
+<p><strong>dig -t ANY -x 192.168.2.20</strong></p>
+
+<p>this command executes a query with type ANY and name 20.2.168.192.in-addr.arpa 
+<strong>%(rqname)s will be resolved with 192.168.2.20</strong></p>
+
+<p>Example:</p>
+
+<p><strong>fleppyb.ini</strong></p>
+
+<pre><code>[DEFAULT]
+ldap_uri=ldap://localhost
+;bind_dn=cn=admin,dc=example,dc=com
+;bind_password=changeme
+A_attribute = aRecord
+MX_attribute = MxRecord
+NS_attribute = nSRecord
+TTL_attribute = dNSTTL
+; the default value for TTL
+TTL_default = 2400
+SOA_attribute = sOARecord
+CNAME_attribute = cNAMERecord
+base = dc=example,dc=com
+query = (&amp;(objectClass=extensibleObject)(associatedDomain=%(qname)s))
+
+[2:.*:*:0.0.0.0/0:0.0.0.0/0]
+base = dc=netconf,dc=example,dc=com
+query = (&amp;(objectclass=extensibleObject)(associatedDomain=%(qname)s))
+backend=ldap
+bind=False
+autogen_ptr=True
+
+[1:.*.in-addr\.arpa:*:0.0.0.0/0:0.0.0.0/0]
+base = dc=netconf,dc=example,dc=com
+query = (&amp;(objectclass=extensibleObject)(arecord=%(rqname)s))
+backend=ldap
+bind=False
+PTR_attribute=associatedDomain
+</code></pre>
+
+<p><strong>Reverse query:</strong>   </p>
+
+<pre><code>dig -x 192.168.2.20)
+</code></pre>
+
+<p>;; QUESTION SECTION:
+    ;20.2.168.192.in-addr.arpa.     IN      PTR</p>
+
+<pre><code>;; ANSWER SECTION:
+20.2.168.192.in-addr.arpa. 2400 IN      PTR     www.example.com.
+</code></pre>
+
+<h1>
+<a id="powerdns-and-caching" class="anchor" href="#powerdns-and-caching" aria-hidden="true"><span class="octicon octicon-link"></span></a>PowerDNS and caching</h1>
+
+<p>If you configure Fleppyb in order to provide differents answers for the same name (Ex. split brain configuration) you need to disable query caching in PowerDNS configuring query-cache-ttl e negquery-cache-ttl at 0.
+You can leave enable the cache-ttl.</p>
+
+<p>Testing</p>
+
+<p>You can manually testing fleppy simulating the PIPE backend protocol:</p>
+
+<pre><code>echo -ne "HELO\nQ\t20.2.168.192.in-addr.arpa\tIN\tANY\t-1\t192.168.3.13\t0.0.0.0" | /etc/powerdns/fleppyb/fleppyb.py
+</code></pre>
+
+<p><a href="https://bitdeli.com/free" title="Bitdeli Badge"><img src="https://d2weczhvl823v0.cloudfront.net/pbertera/fleppyb/trend.png" alt="Bitdeli Badge"></a></p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/robotman3000/fleppyb">Fleppyb</a> is maintained by <a href="https://github.com/robotman3000">robotman3000</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
+
