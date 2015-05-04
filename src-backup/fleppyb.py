@@ -21,7 +21,7 @@ import re
 import time
 import random
 
-import dns.resolver
+
 import socket
 
 from IPy import IP
@@ -187,60 +187,31 @@ class LDAPDNSBackend(DNSAnswer):
         
         return answer
 
-class RecurseBackend(DNSAnswer):
+class RecurseBackend():
 
-    def __init__(self, logger):
-        self.logger = logger
+    def _init_(self):
+        hi = "feajitoger"
 
     def query(self, query):
         answer = []
-        useOpenDns = False
-
-        googleResolver = dns.resolver.Resolver()
-        googleResolver.nameservers = ['8.8.8.8', '4.4.4.4']
-
-        openDNSResolver = dns.resolver.Resolver()
-        openDNSResolver.nameservers = ['208.67.222.222']
-
-        if query.remote_ip == '192.168.8.118':
-            useOpenDns = True
-
-        if useOpenDns:
-            dnsAnswer = openDNSResolver.query(query.qname)
-        else:
-            dnsAnswer = googleResolver.query(query.qname)
-
-        address = '127.0.0.2'
-        for a in dnsAnswer:
-            self.logger.debug("Answer rdclass " + str(a.rdclass) + " Answer rdtype " + str(a.rdtype))
-            self.logger.debug(a)
-            self.logger.debug(dnsAnswer)
-            if a.rdclass == 'IN':
-                if a.rdtype == 'A':
-                    address = a.address
-                elif a.rdtype == 'AAAA':
-                    address = a.address
-                elif a.rdtype == 'SOA':
-                    address = '127.0.0.1'
-
-            answer.append(DNSAnswer(query.qname, query.qtype, query.qclass, 3600, 1, a))
-
+        ip = socket.gethostbyname(query.qname)
+        answer.append(DNSAnswer(query.qname, "IN", "A", 3600, 1, ip))
         return answer
 
 class RobotmanBackend(object):
 
-    def __init__(self, logger):
-        self.logger = logger
+    def _init_(self):
+        hi = "greshtrs"
 
     def query(self, q):
         answer = []
-        backend = RecurseBackend(self.logger)
+        backend = RecurseBackend()
         answer = backend.query(q)
         return answer
 
     # TODO: AXFR not implemented !
     def axfr(self, a=None, b=None, c=None):
-        self.logger.warning("AXFR query not implemented")
+        #self.logger.warning("AXFR query not implemented")
         return []
 
 class FleppyBackend(object):
@@ -371,7 +342,7 @@ def main():
 
 
     #fleppy_backend = FleppyBackend(logger)
-    fleppy_backend = RobotmanBackend(logger)
+    fleppy_backend = RobotmanBackend()
     backend = PowerDNSBackend(fleppy_backend, logger)
     backend.run()
 
