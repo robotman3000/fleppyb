@@ -206,15 +206,18 @@ class RecurseBackend(DNSAnswer):
             useOpenDns = True
 
         if useOpenDns:
-            dnsAnswer = openDNSResolver.query(query.qname)
+            # Remove the 'A' to not get only A records
+            dnsAnswer = openDNSResolver.query(query.qname, 'A')
         else:
-            dnsAnswer = googleResolver.query(query.qname)
+            dnsAnswer = googleResolver.query(query.qname, 'A')
 
         address = '127.0.0.2'
         for a in dnsAnswer:
             self.logger.debug("Answer rdclass " + str(a.rdclass) + " Answer rdtype " + str(a.rdtype))
             self.logger.debug(a)
             self.logger.debug(dnsAnswer)
+            # this if statement is broken and not yet finished
+            # dont use it
             if a.rdclass == 'IN':
                 if a.rdtype == 'A':
                     address = a.address
@@ -223,7 +226,7 @@ class RecurseBackend(DNSAnswer):
                 elif a.rdtype == 'SOA':
                     address = '127.0.0.1'
 
-            answer.append(DNSAnswer(query.qname, query.qtype, query.qclass, 3600, 1, a))
+            answer.append(DNSAnswer(query.qname, query.qtype, query.qclass, 3600, 1, a.address))
 
         return answer
 
